@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RecRe QR Logo Swapper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F2EC;
+    --panel: #FFFFFF;
+    --ink: #0A0A0A;
+    --ink-soft: #4A4A4A;
+    --rule: #1A1A1A;
+    --rule-soft: #D4D0C8;
+    --accent: #C84B1D;
+    --accent-soft: #F4D9CC;
+    --ok: #2D5016;
+    --warn: #B8860B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.5;
+    background-image:
+      linear-gradient(to right, rgba(10,10,10,0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(10,10,10,0.025) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--rule);
+    padding-bottom: 16px;
+    margin-bottom: 32px;
+  }
+  header .title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+  header .subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+  }
+  header .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-soft);
+    text-align: right;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  header .meta .accent { color: var(--accent); font-weight: 600; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(380px, 1fr) 2fr;
+    gap: 32px;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--rule); }
+  .panel-header {
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .panel-header .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+  .panel-header .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+  }
+  .panel-body { padding: 20px; }
+
+  .field-label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  .drop-zone {
+    border: 1.5px dashed var(--rule-soft);
+    background: var(--bg);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop-zone.has-file { border-style: solid; border-color: var(--ok); background: var(--panel); }
+  .drop-zone input[type=file] { display: none; }
+  .drop-zone .hint {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .drop-zone .filename {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .logo-thumb {
+    width: 80px; height: 80px;
+    border: 1px solid var(--rule);
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px;
+  }
+  .logo-thumb svg { max-width: 100%; max-height: 100%; }
+
+  .logo-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .logo-opt {
+    border: 1.5px solid var(--rule-soft);
+    background: var(--panel);
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .logo-opt:hover { border-color: var(--accent); }
+  .logo-opt.active {
+    border-color: var(--ok);
+    border-width: 2px;
+    background: var(--bg);
+  }
+  .logo-opt-preview {
+    width: 100%;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+  }
+  .logo-opt-preview.light { background: #FFFFFF; border: 1px solid var(--rule-soft); }
+  .logo-opt-preview.dark { background: #000000; }
+  .logo-opt-svg { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .logo-opt-svg svg { max-width: 100%; max-height: 100%; }
+  .logo-opt-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+
+  .qr-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    max-width: 100%;
+  }
+  .qr-thumb-mini {
+    width: 36px; height: 36px;
+    border: 1px solid var(--rule-soft);
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2px;
+    position: relative;
+  }
+  .qr-thumb-mini svg { width: 100%; height: 100%; }
+
+  select, input[type=text] {
+    width: 100%;
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    padding: 8px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--ink);
+    border-radius: 0;
+  }
+  select:focus, input[type=text]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  input[type=range] { width: 100%; }
+
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+
+  .style-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .input-stack { display: flex; flex-direction: column; gap: 6px; }
+  .badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    background: var(--accent);
+    color: var(--panel);
+    padding: 2px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+
+  button.action {
+    width: 100%;
+    border: 1.5px solid var(--rule);
+    background: var(--ink);
+    color: var(--bg);
+    padding: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button.action:hover:not(:disabled) { background: var(--accent); }
+  button.action:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.action.secondary { background: var(--panel); color: var(--ink); }
+  button.action.secondary:hover:not(:disabled) { background: var(--ink); color: var(--bg); }
+
+  .actions-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .preview-area {
+    min-height: 400px;
+    padding: 24px;
+    background:
+      repeating-linear-gradient(45deg, transparent 0 12px, rgba(10,10,10,0.025) 12px 13px);
+  }
+  .preview-empty {
+    height: 100%;
+    min-height: 350px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+  .preview-empty .big {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+  .preview-empty .glyph {
+    width: 90px; height: 90px;
+    border: 2px dashed var(--rule-soft);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .preview-empty .glyph::before {
+    content: '';
+    width: 36px; height: 36px;
+    background:
+      linear-gradient(45deg, transparent 45%, var(--rule-soft) 45% 55%, transparent 55%),
+      linear-gradient(-45deg, transparent 45%, var(--rule-soft) 45% 55%, transparent 55%);
+  }
+
+  .qr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .qr-card {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .qr-card .qr-img {
+    aspect-ratio: 1;
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .qr-card .qr-img svg { width: 100%; height: 100%; }
+  .qr-card .qr-meta {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .qr-card .qr-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .qr-card .single-dl {
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    padding: 4px 8px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .qr-card .single-dl:hover { background: var(--ink); color: var(--bg); }
+  .qr-card .qr-status {
+    padding: 0 12px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ok);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .qr-card .qr-status.warn { color: var(--warn); }
+  .qr-card .qr-status.error { color: var(--accent); }
+
+  .status-bar {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: flex;
+    justify-content: space-between;
+  }
+  .status-bar.error { background: var(--accent); }
+  .status-bar.ok .count { color: #7CD66E; }
+  .status-bar .count { color: var(--accent); font-weight: 600; }
+
+  details.help {
+    margin-top: 16px;
+    border: 1px solid var(--rule-soft);
+    padding: 12px 16px;
+    background: var(--bg);
+  }
+  details.help summary {
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  details.help[open] summary { margin-bottom: 10px; }
+  details.help p { font-size: 12px; line-height: 1.6; margin-bottom: 6px; }
+  details.help code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--rule-soft);
+    padding: 1px 5px;
+    font-size: 11px;
+  }
+
+  .file-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--rule-soft);
+    padding: 4px 8px;
+    margin: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+  }
+  .file-pill .x {
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+  .file-pill .x:hover { color: var(--accent); }
+  .file-list { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div>
+      <div class="title">QR Logo Swapper</div>
+      <div class="subtitle">QRCG SVG in · Vector logo replaced · Clean SVG out</div>
+    </div>
+    <div class="meta">
+      <div>RecRe // Hardware</div>
+      <div>Rev <span class="accent">003</span> · 2026</div>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT COLUMN -->
+    <div>
+
+      <!-- Logo -->
+      <div class="panel" style="margin-bottom: 16px;">
+        <div class="panel-header">
+          <span class="label">01 · Replacement Logo</span>
+          <span class="num" id="logoStatus">Black</span>
+        </div>
+        <div class="panel-body">
+          <label class="field-label">RecRe Logo Variant</label>
+          <div class="logo-toggle">
+            <button class="logo-opt active" data-variant="black">
+              <div class="logo-opt-preview light"><div class="logo-opt-svg" id="optPreviewBlack"></div></div>
+              <div class="logo-opt-label">Black</div>
+            </button>
+            <button class="logo-opt" data-variant="white">
+              <div class="logo-opt-preview dark"><div class="logo-opt-svg" id="optPreviewWhite"></div></div>
+              <div class="logo-opt-label">White</div>
+            </button>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-soft); margin-top: 10px; line-height: 1.5;">
+            Black for standard QRs (light bg). White for inverted QRs (dark bg).
+          </div>
+        </div>
+      </div>
+
+      <!-- QR files -->
+      <div class="panel" style="margin-bottom: 16px;">
+        <div class="panel-header">
+          <span class="label">02 · QRCG Exports</span>
+          <span class="num" id="qrCount">0 files</span>
+        </div>
+        <div class="panel-body">
+          <label class="field-label">SVG Files from QRCG</label>
+          <label class="drop-zone" id="qrDrop">
+            <input type="file" id="qrInput" accept=".svg,image/svg+xml" multiple>
+            <div id="qrThumbs"></div>
+            <div class="hint" id="qrHint">Click or drop one or more SVG files</div>
+          </label>
+          <div class="file-list" id="fileList"></div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="label">03 · Replace + Export</span>
+          <span class="num">RUN</span>
+        </div>
+        <div class="panel-body">
+
+          <div class="field">
+            <label class="field-label">Logo Fit</label>
+            <select id="fitMode">
+              <option value="contain" selected>Contain (preserve aspect, center)</option>
+              <option value="stretch">Stretch (fill original bounds exactly)</option>
+              <option value="width">Match Width (preserve aspect, fit to width)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field-label">
+              Size Adjust <span class="badge" id="scaleBadge">100%</span>
+            </label>
+            <input type="range" id="scaleAdjust" min="50" max="150" value="100" step="5">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-soft); margin-top: 4px;">
+              Tweak final logo size relative to QRCG's original placement.
+            </div>
+          </div>
+
+          <details class="help">
+            <summary>How it works</summary>
+            <p>The tool finds the embedded raster logo (the <code>&lt;image&gt;</code> element inside QRCG's SVG export), removes it, and drops in your clean SVG logo at the exact same position and size.</p>
+            <p>Filenames are preserved from input. No QR module data is touched, only the logo layer.</p>
+          </details>
+
+          <div class="actions-row">
+            <button class="action" id="processBtn" disabled>Replace Logos</button>
+            <button class="action secondary" id="downloadAllBtn" disabled>ZIP All</button>
+          </div>
+
+          <div class="status-bar" id="statusBar" style="display: none;"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="label">Output Preview</span>
+        <span class="num" id="outputCount">0 processed</span>
+      </div>
+      <div class="preview-area" id="previewArea">
+        <div class="preview-empty">
+          <div class="glyph"></div>
+          <div class="big">No output yet</div>
+          <div style="font-size: 11px; max-width: 320px;">Upload your clean SVG logo and one or more QRCG SVG exports, then hit Replace Logos.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const state = {
+  logoSVG: null,
+  logoViewBox: null,
+  logoInner: null,
+  logoFilename: null,
+  qrFiles: [],     // [{ filename, svgText }]
+  processed: []    // [{ filename, svgText, status, message }]
+};
+
+// =================================================================
+// Embedded RecRe logo (single source of truth, fill applied at render)
+// =================================================================
+const RECRE_LOGO_VIEWBOX = [0, 0, 804.54, 209.2];
+const RECRE_LOGO_PATHS = `<path d="M777.68,98.63c-2.68,0-5.25,0.43-7.67,1.23c-9.11,2.99-15.87,11.14-16.81,21c-0.07,0.78-0.12,1.57-0.12,2.36c0,13.58,11.01,24.59,24.59,24.59c5.56,0,10.68-1.84,14.8-4.95c3.27-2.47,5.9-5.74,7.61-9.51c1.4-3.09,2.18-6.51,2.18-10.13C802.27,109.64,791.26,98.63,777.68,98.63z"/><path d="M739.07,137.2l-0.03-0.02c-18.36,21.4-50.71,23.88-72.11,5.53l-0.04,0.04c-21.29-18.37-23.88-50.61-5.69-72.15c8.87-10.5,21.3-16.92,34.99-18.07c5.82-0.49,11.58,0,17.08,1.4l-29.9,35.4l34.28,28.96l62.16-73.6l-17.14-14.48c-19.66-16.6-44.6-24.57-70.25-22.4c-25.64,2.16-48.91,14.18-65.51,33.83c-16.6,19.66-24.56,44.61-22.4,70.25c2.16,25.64,14.17,48.91,33.83,65.51l0.05-0.06c21.12,17.78,47.77,24.9,73.3,21.83c0.84-0.1,1.67-0.22,2.51-0.34c21.04-3.09,41.15-13.13,56.55-29.82c0.79-0.86,1.57-1.73,2.34-2.62c0.8-1.03,1.59-2.08,2.35-3.15l0.07-0.09L739.07,137.2L739.07,137.2z"/><path d="M465.56,98.63c-2.68,0-5.25,0.43-7.67,1.23c-9.11,2.99-15.87,11.14-16.81,21c-0.07,0.78-0.12,1.57-0.12,2.36c0,13.58,11.01,24.59,24.59,24.59c5.55,0,10.68-1.84,14.8-4.95c3.27-2.47,5.9-5.74,7.61-9.51c1.4-3.09,2.18-6.51,2.18-10.13C490.15,109.64,479.14,98.63,465.56,98.63z"/><path d="M343.81,78.65c2.9-3.7,6.03-7.58,9.44-10.7c10.14-9.28,22.27-13.68,36-13.05c0.94,0.04,1.87,0.11,2.79,0.2c12.59,1.15,24.15,6.81,32.83,16.1l0.01,0.01c1.4,1.49,2.71,3.07,3.92,4.72l29.23-34.65l-0.01-0.01l0.01-0.02c-17.38-18.98-41.11-30.05-66.81-31.18c-1.58-0.07-3.15-0.1-4.72-0.09c-23.91,0.16-46.57,9.05-64.32,25.31c-4.54,4.16-8.59,8.71-12.2,13.53l-0.01-0.01c0,0-63.66,77.15-74.39,87.64l-0.04-0.03c-18.36,21.4-50.71,23.88-72.11,5.53l-0.04,0.04c-10.25-8.84-16.52-21.11-17.66-34.62c-1.15-13.7,3.1-27.02,11.96-37.52c8.87-10.5,21.3-16.92,34.99-18.07c5.82-0.49,11.58,0,17.08,1.4l-29.9,35.4l34.28,28.96l62.16-73.59l-17.14-14.48c-19.66-16.6-44.61-24.57-70.25-22.4c-25.64,2.16-48.9,14.17-65.51,33.83c-16.6,19.66-24.56,44.6-22.4,70.25c2.16,25.64,14.17,48.91,33.83,65.51l0.05-0.07c21.12,17.78,47.77,24.9,73.29,21.83c23.03-2.77,45.14-13.82,61.4-32.77l25.58-30.05c0.01,0.05,0.03,0.09,0.04,0.14C314.67,112.8,341,81.97,343.81,78.65z"/><path d="M395.85,157c-9.36,1.58-18.76,0.57-27.37-2.82c-3.96-1.54-7.76-3.57-11.32-6.1c-11.2-7.97-18.63-19.82-20.91-33.37c-0.39-2.34-0.61-4.67-0.69-7c-0.01-0.3-0.02-0.6-0.03-0.9c0-0.18,0-0.36,0-0.54l-35.37,41.48c4.03,8.49,9.34,16.43,15.85,23.57l0.01-0.01c0.06,0.06,0.12,0.12,0.17,0.18l0.07-0.06c4.48,4.88,9.52,9.37,15.13,13.36c4.05,2.88,8.27,5.42,12.62,7.62c13.31,6.67,27.89,10.12,42.77,10.12c5.38,0,10.81-0.45,16.22-1.37c24.94-4.2,46.8-17.71,61.7-38.08l-36.42-25.71C420.34,147.84,408.89,154.8,395.85,157z"/><path d="M618.85,35.35c5.59-6.62,11.87-12.45,18.68-17.46c-11.38-4.69-23.68-7.15-36.35-7.15c-52.61,0-95.41,42.8-95.41,95.41v94.41h44.88v-94.41c0-27.86,22.67-50.53,50.53-50.53c1.36,0,2.71,0.07,4.05,0.17C608.95,48.57,613.48,41.71,618.85,35.35z"/><path d="M115.35,34.59c5.59-6.62,11.87-12.45,18.68-17.46c-11.38-4.69-23.68-7.15-36.35-7.15c-52.61,0-95.41,42.8-95.41,95.4v94.41h44.88v-94.41c0-27.86,22.67-50.53,50.53-50.53c1.36,0,2.71,0.07,4.05,0.17C105.45,47.81,109.98,40.94,115.35,34.59z"/>`;
+
+function getLogoInner(fill) {
+  // Wrap paths in a group with the requested fill
+  return `<g fill="${fill}">${RECRE_LOGO_PATHS}</g>`;
+}
+
+function getLogoSvg(fill) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${RECRE_LOGO_VIEWBOX.join(' ')}">${getLogoInner(fill)}</svg>`;
+}
+
+// =================================================================
+// Logo variant selector
+// =================================================================
+const logoStatus = document.getElementById('logoStatus');
+
+function setLogoVariant(variant) {
+  const fill = variant === 'white' ? '#FFFFFF' : '#000000';
+  state.logoViewBox = RECRE_LOGO_VIEWBOX.slice();
+  state.logoInner = getLogoInner(fill);
+  state.logoVariant = variant;
+
+  logoStatus.textContent = variant === 'white' ? 'White' : 'Black';
+  logoStatus.style.color = '#7CD66E';
+
+  document.querySelectorAll('.logo-opt').forEach(b => {
+    b.classList.toggle('active', b.dataset.variant === variant);
+  });
+
+  updateProcessButton();
+}
+
+document.querySelectorAll('.logo-opt').forEach(btn => {
+  btn.addEventListener('click', () => setLogoVariant(btn.dataset.variant));
+});
+
+// Render preview thumbnails inside both option buttons
+document.getElementById('optPreviewBlack').innerHTML = getLogoSvg('#000000');
+document.getElementById('optPreviewWhite').innerHTML = getLogoSvg('#FFFFFF');
+
+// Default to black
+setLogoVariant('black');
+
+// =================================================================
+// QR file upload (multi)
+// =================================================================
+const qrDrop = document.getElementById('qrDrop');
+const qrInput = document.getElementById('qrInput');
+const qrThumbs = document.getElementById('qrThumbs');
+const qrHint = document.getElementById('qrHint');
+const qrCount = document.getElementById('qrCount');
+const fileList = document.getElementById('fileList');
+
+qrInput.addEventListener('change', e => {
+  if (e.target.files.length) handleQRFiles(e.target.files);
+});
+qrDrop.addEventListener('dragover', e => { e.preventDefault(); qrDrop.classList.add('dragover'); });
+qrDrop.addEventListener('dragleave', () => qrDrop.classList.remove('dragover'));
+qrDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  qrDrop.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleQRFiles(e.dataTransfer.files);
+});
+
+async function handleQRFiles(fileList) {
+  const arr = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.svg'));
+  if (arr.length === 0) {
+    alert('No SVG files in selection.');
+    return;
+  }
+
+  for (const file of arr) {
+    const text = await file.text();
+    // Skip duplicates by filename
+    if (state.qrFiles.some(f => f.filename === file.name)) continue;
+    state.qrFiles.push({ filename: file.name, svgText: text });
+  }
+
+  refreshQRList();
+  updateProcessButton();
+}
+
+function refreshQRList() {
+  qrCount.textContent = state.qrFiles.length + ' file' + (state.qrFiles.length === 1 ? '' : 's');
+  if (state.qrFiles.length > 0) {
+    qrDrop.classList.add('has-file');
+    // Mini thumbnails
+    qrThumbs.innerHTML = '';
+    const thumbsContainer = document.createElement('div');
+    thumbsContainer.className = 'qr-thumbs';
+    state.qrFiles.slice(0, 12).forEach(f => {
+      const mini = document.createElement('div');
+      mini.className = 'qr-thumb-mini';
+      mini.innerHTML = f.svgText;
+      thumbsContainer.appendChild(mini);
+    });
+    qrThumbs.appendChild(thumbsContainer);
+    qrHint.innerHTML = `<span class="filename">${state.qrFiles.length} loaded</span>`;
+  } else {
+    qrDrop.classList.remove('has-file');
+    qrThumbs.innerHTML = '';
+    qrHint.textContent = 'Click or drop one or more SVG files';
+  }
+
+  // File pills with remove
+  fileList.innerHTML = '';
+  state.qrFiles.forEach((f, idx) => {
+    const pill = document.createElement('span');
+    pill.className = 'file-pill';
+    pill.innerHTML = `${f.filename} <span class="x" data-idx="${idx}">×</span>`;
+    fileList.appendChild(pill);
+  });
+  fileList.querySelectorAll('.x').forEach(x => {
+    x.addEventListener('click', () => {
+      const idx = parseInt(x.dataset.idx, 10);
+      state.qrFiles.splice(idx, 1);
+      refreshQRList();
+      updateProcessButton();
+    });
+  });
+}
+
+function updateProcessButton() {
+  document.getElementById('processBtn').disabled = !(state.logoInner && state.qrFiles.length > 0);
+}
+
+// =================================================================
+// Settings UI
+// =================================================================
+const scaleAdjust = document.getElementById('scaleAdjust');
+const scaleBadge = document.getElementById('scaleBadge');
+scaleAdjust.addEventListener('input', () => {
+  scaleBadge.textContent = scaleAdjust.value + '%';
+});
+
+// =================================================================
+// Logo replacement core
+// =================================================================
+function replaceLogo(qrSvgText) {
+  const fitMode = document.getElementById('fitMode').value;
+  const scaleMul = parseInt(scaleAdjust.value, 10) / 100;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(qrSvgText, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) {
+    return { ok: false, message: 'Parse error', svgText: qrSvgText };
+  }
+  const svgEl = doc.documentElement;
+
+  // Find the embedded image element (raster logo). If multiple, take
+  // the largest one; QRCG sometimes adds tiny image elements for icons.
+  const imgEls = Array.from(svgEl.querySelectorAll('image'));
+  if (imgEls.length === 0) {
+    return { ok: false, status: 'warn', message: 'No embedded image found', svgText: qrSvgText };
+  }
+
+  let imgEl = imgEls[0];
+  if (imgEls.length > 1) {
+    let bestArea = 0;
+    for (const el of imgEls) {
+      const w = parseFloat(el.getAttribute('width')) || 0;
+      const h = parseFloat(el.getAttribute('height')) || 0;
+      const area = w * h;
+      if (area > bestArea) { bestArea = area; imgEl = el; }
+    }
+  }
+
+  // Read original placement
+  const ix = parseFloat(imgEl.getAttribute('x')) || 0;
+  const iy = parseFloat(imgEl.getAttribute('y')) || 0;
+  const iw = parseFloat(imgEl.getAttribute('width')) || 0;
+  const ih = parseFloat(imgEl.getAttribute('height')) || 0;
+
+  if (iw === 0 || ih === 0) {
+    return { ok: false, status: 'warn', message: 'Image has no dimensions', svgText: qrSvgText };
+  }
+
+  // Remember the parent so we can replace in place (preserves z-order)
+  const parent = imgEl.parentNode;
+
+  // Build replacement <g> with the logo content
+  const [vbX, vbY, vbW, vbH] = state.logoViewBox;
+  let scale, scaledW, scaledH, offsetX, offsetY;
+
+  if (fitMode === 'stretch') {
+    // Fill the original image bounds exactly. May warp the logo.
+    const sx = (iw * scaleMul) / vbW;
+    const sy = (ih * scaleMul) / vbH;
+    scaledW = vbW * sx;
+    scaledH = vbH * sy;
+    offsetX = ix + (iw - scaledW) / 2 - vbX * sx;
+    offsetY = iy + (ih - scaledH) / 2 - vbY * sy;
+    const g = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${sx} ${sy})`);
+    g.innerHTML = state.logoInner;
+    parent.replaceChild(g, imgEl);
+  } else {
+    // Contain or width: preserve aspect ratio
+    if (fitMode === 'width') {
+      scale = (iw * scaleMul) / vbW;
+    } else {
+      // Contain: fit fully inside bounds
+      scale = Math.min(iw / vbW, ih / vbH) * scaleMul;
+    }
+    scaledW = vbW * scale;
+    scaledH = vbH * scale;
+    offsetX = ix + (iw - scaledW) / 2 - vbX * scale;
+    offsetY = iy + (ih - scaledH) / 2 - vbY * scale;
+    const g = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${scale})`);
+    g.innerHTML = state.logoInner;
+    parent.replaceChild(g, imgEl);
+  }
+
+  return {
+    ok: true,
+    status: 'ok',
+    message: `Replaced (orig ${Math.round(iw)}×${Math.round(ih)})`,
+    svgText: new XMLSerializer().serializeToString(svgEl)
+  };
+}
+
+// =================================================================
+// Process batch
+// =================================================================
+const processBtn = document.getElementById('processBtn');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const previewArea = document.getElementById('previewArea');
+const outputCount = document.getElementById('outputCount');
+const statusBar = document.getElementById('statusBar');
+
+processBtn.addEventListener('click', () => {
+  if (!state.logoInner || state.qrFiles.length === 0) return;
+
+  state.processed = [];
+  let okCount = 0;
+  let warnCount = 0;
+  let errCount = 0;
+
+  for (const f of state.qrFiles) {
+    try {
+      const result = replaceLogo(f.svgText);
+      state.processed.push({
+        filename: f.filename,
+        svgText: result.svgText,
+        ok: result.ok,
+        status: result.status || (result.ok ? 'ok' : 'error'),
+        message: result.message || ''
+      });
+      if (result.ok) okCount++;
+      else if (result.status === 'warn') warnCount++;
+      else errCount++;
+    } catch (err) {
+      state.processed.push({
+        filename: f.filename,
+        svgText: f.svgText,
+        ok: false,
+        status: 'error',
+        message: err.message
+      });
+      errCount++;
+    }
+  }
+
+  renderPreviews();
+  downloadAllBtn.disabled = okCount === 0;
+  outputCount.textContent = `${okCount} processed`;
+
+  let msg = `Replaced ${okCount} of ${state.qrFiles.length}`;
+  if (warnCount) msg += ` · ${warnCount} skipped`;
+  if (errCount) msg += ` · ${errCount} failed`;
+  showStatus(msg, errCount > 0, errCount === 0 && warnCount === 0);
+});
+
+function renderPreviews() {
+  if (state.processed.length === 0) return;
+  const grid = document.createElement('div');
+  grid.className = 'qr-grid';
+
+  state.processed.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'qr-card';
+    const statusClass = item.status === 'ok' ? '' : (item.status === 'warn' ? 'warn' : 'error');
+    card.innerHTML = `
+      <div class="qr-img">${item.svgText}</div>
+      <div class="qr-meta">
+        <div class="qr-name" title="${item.filename}">${item.filename}</div>
+        <button class="single-dl" data-idx="${idx}" ${item.ok ? '' : 'disabled'}>DL</button>
+      </div>
+      <div class="qr-status ${statusClass}">${item.message}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  previewArea.innerHTML = '';
+  previewArea.appendChild(grid);
+
+  grid.querySelectorAll('.single-dl').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      const item = state.processed[idx];
+      const blob = new Blob([item.svgText], { type: 'image/svg+xml' });
+      saveAs(blob, item.filename);
+    });
+  });
+}
+
+downloadAllBtn.addEventListener('click', async () => {
+  const successItems = state.processed.filter(p => p.ok);
+  if (successItems.length === 0) return;
+  const zip = new JSZip();
+  successItems.forEach(item => {
+    zip.file(item.filename, item.svgText);
+  });
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const stamp = new Date().toISOString().slice(0, 10);
+  saveAs(blob, `recre_qr_swapped_${stamp}.zip`);
+});
+
+function showStatus(msg, isError, isOk) {
+  statusBar.style.display = 'flex';
+  statusBar.className = 'status-bar' + (isError ? ' error' : '') + (isOk ? ' ok' : '');
+  statusBar.innerHTML = `<span>${msg}</span><span class="count">${new Date().toLocaleTimeString()}</span>`;
+}
+</script>
+
+</body>
+</html>
